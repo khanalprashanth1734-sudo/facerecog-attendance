@@ -14,7 +14,107 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      attendance_records: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          id: string
+          recorded_by: string | null
+          status: string
+          student_class: string
+          student_id: string
+          student_name: string
+          timestamp: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          recorded_by?: string | null
+          status?: string
+          student_class: string
+          student_id: string
+          student_name: string
+          timestamp?: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          recorded_by?: string | null
+          status?: string
+          student_class?: string
+          student_id?: string
+          student_name?: string
+          timestamp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_records_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          role: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          role?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          role?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      students: {
+        Row: {
+          class: string
+          created_at: string
+          face_descriptor: string | null
+          id: string
+          name: string
+          registered_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          class: string
+          created_at?: string
+          face_descriptor?: string | null
+          id?: string
+          name: string
+          registered_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          class?: string
+          created_at?: string
+          face_descriptor?: string | null
+          id?: string
+          name?: string
+          registered_by?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
