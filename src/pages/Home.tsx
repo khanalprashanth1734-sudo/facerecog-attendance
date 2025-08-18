@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { 
   CheckCircle, 
   Clock, 
@@ -10,10 +11,12 @@ import {
   Users, 
   Camera,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  LogIn
 } from "lucide-react";
 
 const Home = () => {
+  const { user } = useAuth();
   const features = [
     {
       icon: Zap,
@@ -66,18 +69,29 @@ const Home = () => {
               Fast, accurate, and completely contactless.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/attendance">
-                <Button size="lg" className="gradient-primary text-primary-foreground hover:opacity-90 transition-smooth group">
-                  Start Attendance
-                  <Camera className="ml-2 h-5 w-5 group-hover:rotate-12 transition-transform" />
-                </Button>
-              </Link>
-              <Link to="/register">
-                <Button size="lg" variant="outline" className="border-primary text-primary hover:bg-primary/10">
-                  Register New Member
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </Link>
+              {user ? (
+                <>
+                  <Link to="/attendance">
+                    <Button size="lg" className="gradient-primary text-primary-foreground hover:opacity-90 transition-smooth group">
+                      Start Attendance
+                      <Camera className="ml-2 h-5 w-5 group-hover:rotate-12 transition-transform" />
+                    </Button>
+                  </Link>
+                  <Link to="/register">
+                    <Button size="lg" variant="outline" className="border-primary text-primary hover:bg-primary/10">
+                      Register New Student
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </Button>
+                  </Link>
+                </>
+              ) : (
+                <Link to="/auth">
+                  <Button size="lg" className="gradient-primary text-primary-foreground hover:opacity-90 transition-smooth group">
+                    Login to Continue
+                    <LogIn className="ml-2 h-5 w-5 group-hover:rotate-12 transition-transform" />
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
         </div>

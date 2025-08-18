@@ -1,18 +1,20 @@
 import { NavLink } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 import { 
   Home, 
-  Users, 
   Camera, 
   UserPlus, 
   FileSpreadsheet,
-  Scan
+  Scan,
+  LogOut
 } from "lucide-react";
 
 const Navigation = () => {
+  const { user, signOut } = useAuth();
+  
   const navItems = [
     { to: "/", icon: Home, label: "Home" },
-    { to: "/developers", icon: Users, label: "Developers" },
     { to: "/attendance", icon: Camera, label: "Attendance" },
     { to: "/register", icon: UserPlus, label: "Register" },
     { to: "/records", icon: FileSpreadsheet, label: "Records" },
@@ -50,6 +52,17 @@ const Navigation = () => {
                 <span>{label}</span>
               </NavLink>
             ))}
+            {user && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={signOut}
+                className="text-muted-foreground hover:text-foreground ml-2"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
+            )}
           </div>
 
           {/* Mobile Menu Button */}

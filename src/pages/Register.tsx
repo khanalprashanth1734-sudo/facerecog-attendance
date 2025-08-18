@@ -21,8 +21,7 @@ import * as faceapi from "face-api.js";
 
 interface RegisterFormData {
   name: string;
-  role: string;
-  department: string;
+  class: string;
 }
 
 const Register = () => {
