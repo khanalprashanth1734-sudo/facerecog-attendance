@@ -248,24 +248,12 @@ const Register = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="class">Class</Label>
-                <Select 
-                  value={formData.class} 
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, class: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Class 9A">Class 9A</SelectItem>
-                    <SelectItem value="Class 9B">Class 9B</SelectItem>
-                    <SelectItem value="Class 10A">Class 10A</SelectItem>
-                    <SelectItem value="Class 10B">Class 10B</SelectItem>
-                    <SelectItem value="Class 11A">Class 11A</SelectItem>
-                    <SelectItem value="Class 11B">Class 11B</SelectItem>
-                    <SelectItem value="Class 12A">Class 12A</SelectItem>
-                    <SelectItem value="Class 12B">Class 12B</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input
+                  id="class"
+                  placeholder="Enter class (e.g., Class 9A, Grade 10B)"
+                  value={formData.class}
+                  onChange={(e) => setFormData(prev => ({ ...prev, class: e.target.value }))}
+                />
               </div>
 
               {/* Face Data Status */}

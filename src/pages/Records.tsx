@@ -31,7 +31,7 @@ const Records = () => {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<AttendanceRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterRole, setFilterRole] = useState('all');
+  
   const [filterDate, setFilterDate] = useState('');
   const [stats, setStats] = useState({
     totalRecords: 0,
@@ -40,67 +40,15 @@ const Records = () => {
     averageAttendance: 0
   });
 
-  // Generate sample data
+  // Initialize empty data
   useEffect(() => {
-    const generateSampleData = () => {
-      const names = [
-        'John Smith', 'Sarah Johnson', 'Michael Brown', 'Emily Davis',
-        'David Wilson', 'Jessica Miller', 'James Anderson', 'Ashley Taylor',
-        'Christopher Moore', 'Amanda Jackson', 'Matthew White', 'Jennifer Lee'
-      ];
-      
-      const roles = ['Student', 'Teacher', 'Staff', 'Admin'];
-      const departments = [
-        'Computer Science', 'Mathematics', 'Physics', 'Chemistry',
-        'Biology', 'English', 'History', 'Administration'
-      ];
-
-      const sampleRecords: AttendanceRecord[] = [];
-      
-      // Generate records for the last 30 days
-      for (let day = 29; day >= 0; day--) {
-        const date = new Date();
-        date.setDate(date.getDate() - day);
-        const dateStr = date.toISOString().split('T')[0];
-        
-        // Random number of people attending each day (70-95% attendance)
-        const attendeesCount = Math.floor(names.length * (0.7 + Math.random() * 0.25));
-        const shuffledNames = [...names].sort(() => Math.random() - 0.5);
-        
-        for (let i = 0; i < attendeesCount; i++) {
-          const hour = 8 + Math.floor(Math.random() * 3); // 8-10 AM
-          const minute = Math.floor(Math.random() * 60);
-          const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-          
-          sampleRecords.push({
-            id: `${dateStr}-${i}`,
-            name: shuffledNames[i],
-            role: roles[Math.floor(Math.random() * roles.length)],
-            department: departments[Math.floor(Math.random() * departments.length)],
-            date: dateStr,
-            time: timeStr,
-            status: hour >= 9 ? 'Late' : 'Present'
-          });
-        }
-      }
-      
-      return sampleRecords.sort((a, b) => new Date(b.date + ' ' + b.time).getTime() - new Date(a.date + ' ' + a.time).getTime());
-    };
-
-    const sampleData = generateSampleData();
-    setRecords(sampleData);
-    setFilteredRecords(sampleData);
-
-    // Calculate stats
-    const today = new Date().toISOString().split('T')[0];
-    const todayRecords = sampleData.filter(r => r.date === today);
-    const uniqueMembers = new Set(sampleData.map(r => r.name)).size;
-    
+    setRecords([]);
+    setFilteredRecords([]);
     setStats({
-      totalRecords: sampleData.length,
-      todayRecords: todayRecords.length,
-      uniqueMembers,
-      averageAttendance: Math.round((sampleData.length / 30) * 10) / 10
+      totalRecords: 0,
+      todayRecords: 0,
+      uniqueMembers: 0,
+      averageAttendance: 0
     });
   }, []);
 
@@ -115,16 +63,12 @@ const Records = () => {
       );
     }
 
-    if (filterRole !== 'all') {
-      filtered = filtered.filter(record => record.role === filterRole);
-    }
-
     if (filterDate) {
       filtered = filtered.filter(record => record.date === filterDate);
     }
 
     setFilteredRecords(filtered);
-  }, [records, searchTerm, filterRole, filterDate]);
+  }, [records, searchTerm, filterDate]);
 
   // Export to Excel
   const exportToExcel = () => {
@@ -225,34 +169,18 @@ const Records = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Search</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by name or department..."
+                    placeholder="Search by name or class..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
                   />
                 </div>
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Role</label>
-                <Select value={filterRole} onValueChange={setFilterRole}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Roles</SelectItem>
-                    <SelectItem value="Student">Student</SelectItem>
-                    <SelectItem value="Teacher">Teacher</SelectItem>
-                    <SelectItem value="Staff">Staff</SelectItem>
-                    <SelectItem value="Admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
               
               <div className="space-y-2">
@@ -280,13 +208,12 @@ const Records = () => {
               <p className="text-sm text-muted-foreground">
                 Showing {filteredRecords.length} of {records.length} records
               </p>
-              {(searchTerm || filterRole !== 'all' || filterDate) && (
+              {(searchTerm || filterDate) && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => {
                     setSearchTerm('');
-                    setFilterRole('all');
                     setFilterDate('');
                   }}
                 >
