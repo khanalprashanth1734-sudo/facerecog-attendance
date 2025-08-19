@@ -36,8 +36,7 @@ const Register = () => {
   const [faceDescriptor, setFaceDescriptor] = useState<Float32Array | null>(null);
   const [formData, setFormData] = useState<RegisterFormData>({
     name: '',
-    role: '',
-    department: ''
+    class: ''
   });
   const [error, setError] = useState<string | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
@@ -157,7 +156,7 @@ const Register = () => {
 
   // Handle form submission
   const handleRegister = async () => {
-    if (!formData.name || !formData.role || !faceDescriptor) {
+    if (!formData.name || !formData.class || !faceDescriptor) {
       setError('Please fill all fields and capture a photo.');
       return;
     }
@@ -170,8 +169,7 @@ const Register = () => {
       const memberData = {
         id: Date.now().toString(),
         name: formData.name,
-        role: formData.role,
-        department: formData.department,
+        class: formData.class,
         photo: capturedPhoto,
         faceDescriptor: Array.from(faceDescriptor), // Convert to array for storage
         registeredAt: new Date().toISOString()
@@ -191,7 +189,7 @@ const Register = () => {
       });
 
       // Reset form
-      setFormData({ name: '', role: '', department: '' });
+      setFormData({ name: '', class: '' });
       setCapturedPhoto(null);
       setFaceDescriptor(null);
       stopCamera();
@@ -249,32 +247,25 @@ const Register = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
+                <Label htmlFor="class">Class</Label>
                 <Select 
-                  value={formData.role} 
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, role: value }))}
+                  value={formData.class} 
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, class: value }))}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select role" />
+                    <SelectValue placeholder="Select class" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="student">Student</SelectItem>
-                    <SelectItem value="teacher">Teacher</SelectItem>
-                    <SelectItem value="staff">Staff</SelectItem>
-                    <SelectItem value="admin">Administrator</SelectItem>
-                    <SelectItem value="visitor">Visitor</SelectItem>
+                    <SelectItem value="Class 9A">Class 9A</SelectItem>
+                    <SelectItem value="Class 9B">Class 9B</SelectItem>
+                    <SelectItem value="Class 10A">Class 10A</SelectItem>
+                    <SelectItem value="Class 10B">Class 10B</SelectItem>
+                    <SelectItem value="Class 11A">Class 11A</SelectItem>
+                    <SelectItem value="Class 11B">Class 11B</SelectItem>
+                    <SelectItem value="Class 12A">Class 12A</SelectItem>
+                    <SelectItem value="Class 12B">Class 12B</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="department">Department/Class</Label>
-                <Input
-                  id="department"
-                  placeholder="e.g., Computer Science, Class 11A"
-                  value={formData.department}
-                  onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
-                />
               </div>
 
               {/* Face Data Status */}
@@ -302,7 +293,7 @@ const Register = () => {
               <Button
                 className="w-full gradient-primary text-primary-foreground hover:opacity-90 transition-smooth"
                 onClick={handleRegister}
-                disabled={!formData.name || !formData.role || !faceDescriptor || isRegistering}
+                disabled={!formData.name || !formData.class || !faceDescriptor || isRegistering}
               >
                 {isRegistering ? (
                   <>
