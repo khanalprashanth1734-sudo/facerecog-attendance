@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PasswordVerificationProps {
   onSuccess: () => void;
@@ -34,15 +35,27 @@ const PasswordVerification = ({
     setError(null);
 
     try {
-      // Simple password check - you can modify this logic as needed
-      if (password === "admin123") {
+      // Use the authenticated user's email and the entered password to verify
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) {
+        setError("User not found");
+        return;
+      }
+
+      // Verify the password by attempting to sign in with current user's email
+      const { error } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: password,
+      });
+
+      if (error) {
+        setError("Incorrect password");
+      } else {
         toast({
           title: "Access granted",
           description: "Welcome to admin panel",
         });
         onSuccess();
-      } else {
-        setError("Incorrect password");
       }
     } catch (err) {
       setError("Failed to verify password");
