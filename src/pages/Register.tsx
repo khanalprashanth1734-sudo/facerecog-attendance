@@ -3,10 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import { 
   Camera, 
   CameraOff, 
@@ -165,23 +167,21 @@ const Register = () => {
     setError(null);
 
     try {
-      // In a real application, this would save to a database
-      const memberData = {
-        id: Date.now().toString(),
-        name: formData.name,
-        class: formData.class,
-        photo: capturedPhoto,
-        faceDescriptor: Array.from(faceDescriptor), // Convert to array for storage
-        registeredAt: new Date().toISOString()
-      };
+      // Save student to Supabase database
+      const { data, error: insertError } = await supabase
+        .from('students')
+        .insert({
+          name: formData.name,
+          class: formData.class,
+          face_descriptor_json: JSON.stringify(Array.from(faceDescriptor)),
+          photo_url: capturedPhoto
+        })
+        .select()
+        .single();
 
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Save to localStorage (in real app, save to database)
-      const existingMembers = JSON.parse(localStorage.getItem('faceAttendMembers') || '[]');
-      existingMembers.push(memberData);
-      localStorage.setItem('faceAttendMembers', JSON.stringify(existingMembers));
+      if (insertError) {
+        throw insertError;
+      }
 
       toast({
         title: "Registration Successful",
@@ -195,16 +195,17 @@ const Register = () => {
       stopCamera();
 
     } catch (error) {
-      console.error('Error registering member:', error);
-      setError('Failed to register member. Please try again.');
+      console.error('Error registering student:', error);
+      setError('Failed to register student. Please try again.');
     } finally {
       setIsRegistering(false);
     }
   };
 
   return (
-    <div className="min-h-screen py-8 px-4">
-      <div className="container mx-auto max-w-4xl">
+    <ProtectedRoute>
+      <div className="min-h-screen py-8 px-4">
+        <div className="container mx-auto max-w-4xl">
         {/* Header */}
         <div className="text-center mb-8 animate-fade-in">
           <div className="flex items-center justify-center mb-4">
@@ -422,8 +423,9 @@ const Register = () => {
             </CardContent>
           </Card>
         </div>
+        </div>
       </div>
-    </div>
+    </ProtectedRoute>
   );
 };
 

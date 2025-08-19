@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   Camera, 
   CameraOff, 
@@ -32,7 +33,26 @@ const Attendance = () => {
   const [currentDetection, setCurrentDetection] = useState<AttendanceRecord | null>(null);
   const [recentAttendance, setRecentAttendance] = useState<AttendanceRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [students, setStudents] = useState<any[]>([]);
   const { toast } = useToast();
+
+  // Load students from database
+  useEffect(() => {
+    const loadStudents = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('students')
+          .select('*');
+        
+        if (error) throw error;
+        setStudents(data || []);
+      } catch (error) {
+        console.error('Error loading students:', error);
+      }
+    };
+
+    loadStudents();
+  }, []);
 
   // Load face-api models
   useEffect(() => {
@@ -123,13 +143,30 @@ const Attendance = () => {
         faceapi.draw.drawDetections(canvas, [resizedDetection]);
         faceapi.draw.drawFaceLandmarks(canvas, [resizedDetection]);
 
-        // Simulate face matching (in real implementation, this would match against stored descriptors)
-        const confidence = Math.random() * 0.3 + 0.7; // Simulate 70-100% confidence
-        const isKnownPerson = confidence > 0.8;
+        // Match against registered students
+        let bestMatch = null;
+        let bestDistance = Infinity;
         
-        if (isKnownPerson) {
+        for (const student of students) {
+          if (student.face_descriptor_json) {
+            try {
+              const storedDescriptor = new Float32Array(JSON.parse(student.face_descriptor_json));
+              const distance = faceapi.euclideanDistance(detection.descriptor, storedDescriptor);
+              
+              if (distance < bestDistance && distance < 0.6) { // Threshold for recognition
+                bestDistance = distance;
+                bestMatch = student;
+              }
+            } catch (error) {
+              console.error('Error parsing face descriptor:', error);
+            }
+          }
+        }
+        
+        if (bestMatch) {
+          const confidence = Math.max(0, 1 - bestDistance);
           const attendanceRecord: AttendanceRecord = {
-            name: `Person ${Math.floor(Math.random() * 100)}`, // In real app, this would be the matched person's name
+            name: bestMatch.name,
             timestamp: new Date().toLocaleString(),
             confidence,
             status: 'success'
@@ -137,18 +174,37 @@ const Attendance = () => {
           
           setCurrentDetection(attendanceRecord);
           
-          // Save attendance (in real app, this would save to database/Excel)
-          setRecentAttendance(prev => [attendanceRecord, ...prev.slice(0, 4)]);
-          
-          toast({
-            title: "Attendance Recorded",
-            description: `${attendanceRecord.name} - ${attendanceRecord.timestamp}`,
-          });
+          // Save attendance to database
+          try {
+            const { error: insertError } = await supabase
+              .from('attendance_records')
+              .insert({
+                student_id: bestMatch.id,
+                student_name: bestMatch.name,
+                student_class: bestMatch.class,
+                confidence: confidence,
+                status: 'present'
+              });
+
+            if (insertError) {
+              console.error('Error saving attendance:', insertError);
+            } else {
+              // Update recent attendance (keep only 35 most recent)
+              setRecentAttendance(prev => [attendanceRecord, ...prev.slice(0, 34)]);
+              
+              toast({
+                title: "Attendance Recorded",
+                description: `${attendanceRecord.name} - ${attendanceRecord.timestamp}`,
+              });
+            }
+          } catch (error) {
+            console.error('Error saving attendance:', error);
+          }
         } else {
           setCurrentDetection({
             name: "Unknown Person",
             timestamp: new Date().toLocaleString(),
-            confidence,
+            confidence: 0,
             status: 'unknown'
           });
         }

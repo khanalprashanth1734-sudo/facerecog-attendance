@@ -2,9 +2,15 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import { 
   FileSpreadsheet, 
   Download, 
@@ -13,43 +19,77 @@ import {
   Calendar,
   User,
   Clock,
-  BarChart3
+  BarChart3,
+  AlertCircle,
+  Loader2
 } from "lucide-react";
 import * as XLSX from 'xlsx';
 
 interface AttendanceRecord {
   id: string;
-  name: string;
-  role: string;
-  department: string;
-  date: string;
-  time: string;
-  status: 'Present' | 'Late';
+  student_name: string;
+  student_class: string;
+  created_at: string;
+  status: string;
+  confidence: number | null;
 }
 
 const Records = () => {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<AttendanceRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  
   const [filterDate, setFilterDate] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [password, setPassword] = useState('');
   const [stats, setStats] = useState({
     totalRecords: 0,
     todayRecords: 0,
     uniqueMembers: 0,
     averageAttendance: 0
   });
+  const { toast } = useToast();
+  const { user } = useAuth();
 
-  // Initialize empty data
+  // Load attendance records from Supabase
   useEffect(() => {
-    setRecords([]);
-    setFilteredRecords([]);
-    setStats({
-      totalRecords: 0,
-      todayRecords: 0,
-      uniqueMembers: 0,
-      averageAttendance: 0
-    });
+    const loadRecords = async () => {
+      try {
+        setLoading(true);
+        const { data, error: fetchError } = await supabase
+          .from('attendance_records')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(35); // Only get top 35 recent records
+
+        if (fetchError) throw fetchError;
+
+        setRecords(data || []);
+        
+        // Calculate stats
+        const today = new Date().toDateString();
+        const todayRecords = data?.filter(record => 
+          new Date(record.created_at).toDateString() === today
+        ).length || 0;
+        
+        const uniqueMembers = new Set(data?.map(record => record.student_name)).size;
+        
+        setStats({
+          totalRecords: data?.length || 0,
+          todayRecords,
+          uniqueMembers,
+          averageAttendance: Math.round((data?.length || 0) / Math.max(1, new Date().getDate()))
+        });
+      } catch (error) {
+        console.error('Error loading records:', error);
+        setError('Failed to load attendance records');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadRecords();
   }, []);
 
   // Apply filters
@@ -58,41 +98,103 @@ const Records = () => {
 
     if (searchTerm) {
       filtered = filtered.filter(record =>
-        record.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        record.department.toLowerCase().includes(searchTerm.toLowerCase())
+        record.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        record.student_class.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
     if (filterDate) {
-      filtered = filtered.filter(record => record.date === filterDate);
+      const filterDateString = new Date(filterDate).toDateString();
+      filtered = filtered.filter(record => 
+        new Date(record.created_at).toDateString() === filterDateString
+      );
     }
 
     setFilteredRecords(filtered);
   }, [records, searchTerm, filterDate]);
 
-  // Export to Excel
-  const exportToExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(filteredRecords);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance Records');
-    
-    // Add some styling
-    const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
-    for (let C = range.s.c; C <= range.e.c; C++) {
-      const address = XLSX.utils.encode_col(C) + "1";
-      if (!worksheet[address]) continue;
-      worksheet[address].s = {
-        font: { bold: true },
-        fill: { fgColor: { rgb: "FFFFAA00" } }
-      };
+  // Verify password and export to Excel
+  const verifyPasswordAndExport = async () => {
+    if (!password) {
+      toast({
+        title: "Password Required",
+        description: "Please enter your password to download the file.",
+        variant: "destructive"
+      });
+      return;
     }
-    
-    XLSX.writeFile(workbook, `attendance_records_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+    try {
+      // Verify password by attempting to sign in
+      const { error } = await supabase.auth.signInWithPassword({
+        email: user?.email || '',
+        password: password
+      });
+
+      if (error) {
+        toast({
+          title: "Invalid Password",
+          description: "The password you entered is incorrect.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Export to Excel
+      const exportData = filteredRecords.map(record => ({
+        'Student Name': record.student_name,
+        'Class': record.student_class,
+        'Date': new Date(record.created_at).toLocaleDateString(),
+        'Time': new Date(record.created_at).toLocaleTimeString(),
+        'Status': record.status,
+        'Confidence': record.confidence ? `${(record.confidence * 100).toFixed(1)}%` : 'N/A'
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance Records');
+      
+      // Add some styling
+      const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+      for (let C = range.s.c; C <= range.e.c; C++) {
+        const address = XLSX.utils.encode_col(C) + "1";
+        if (!worksheet[address]) continue;
+        worksheet[address].s = {
+          font: { bold: true },
+          fill: { fgColor: { rgb: "FFFFAA00" } }
+        };
+      }
+      
+      XLSX.writeFile(workbook, `attendance_records_${new Date().toISOString().split('T')[0]}.xlsx`);
+      
+      toast({
+        title: "Export Successful",
+        description: "Attendance records have been exported to Excel.",
+      });
+
+      setShowPasswordDialog(false);
+      setPassword('');
+    } catch (error) {
+      console.error('Error verifying password:', error);
+      toast({
+        title: "Export Failed",
+        description: "An error occurred while exporting the file.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
-    <div className="min-h-screen py-8 px-4">
-      <div className="container mx-auto max-w-7xl">
+    <ProtectedRoute>
+      <div className="min-h-screen py-8 px-4">
+        <div className="container mx-auto max-w-7xl">
+          {/* Error Alert */}
+          {error && (
+            <Alert className="mb-6 border-destructive/50 bg-destructive/10">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
         {/* Header */}
         <div className="text-center mb-8 animate-fade-in">
           <div className="flex items-center justify-center mb-4">
@@ -194,13 +296,52 @@ const Records = () => {
               
               <div className="space-y-2">
                 <label className="text-sm font-medium">Actions</label>
-                <Button
-                  onClick={exportToExcel}
-                  className="w-full gradient-primary text-primary-foreground hover:opacity-90 transition-smooth"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Excel
-                </Button>
+                <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+                  <DialogTrigger asChild>
+                    <Button className="w-full gradient-primary text-primary-foreground hover:opacity-90 transition-smooth">
+                      <Download className="h-4 w-4 mr-2" />
+                      Export Excel
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Verify Password</DialogTitle>
+                      <DialogDescription>
+                        Please enter your password to download the attendance records.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="password">Password</Label>
+                        <Input
+                          id="password"
+                          type="password"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="Enter your password"
+                        />
+                      </div>
+                      <div className="flex space-x-2">
+                        <Button
+                          onClick={verifyPasswordAndExport}
+                          className="flex-1"
+                        >
+                          Download
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setShowPasswordDialog(false);
+                            setPassword('');
+                          }}
+                          className="flex-1"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
             </div>
             
@@ -237,32 +378,43 @@ const Records = () => {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
-                    <TableHead>Name</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Department</TableHead>
+                    <TableHead>Student Name</TableHead>
+                    <TableHead>Class</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Time</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Confidence</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredRecords.length > 0 ? (
-                    filteredRecords.slice(0, 50).map((record) => (
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8">
+                        <div className="flex items-center justify-center">
+                          <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                          Loading records...
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredRecords.length > 0 ? (
+                    filteredRecords.map((record) => (
                       <TableRow key={record.id} className="hover:bg-muted/30 transition-smooth">
-                        <TableCell className="font-medium">{record.name}</TableCell>
+                        <TableCell className="font-medium">{record.student_name}</TableCell>
                         <TableCell>
-                          <Badge variant="outline">{record.role}</Badge>
+                          <Badge variant="outline">{record.student_class}</Badge>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">{record.department}</TableCell>
-                        <TableCell>{new Date(record.date).toLocaleDateString()}</TableCell>
-                        <TableCell className="font-mono">{record.time}</TableCell>
+                        <TableCell>{new Date(record.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell className="font-mono">{new Date(record.created_at).toLocaleTimeString()}</TableCell>
                         <TableCell>
                           <Badge 
-                            variant={record.status === 'Present' ? 'default' : 'secondary'}
-                            className={record.status === 'Present' ? 'bg-green-500' : 'bg-yellow-500'}
+                            variant={record.status === 'present' ? 'default' : 'secondary'}
+                            className={record.status === 'present' ? 'bg-green-500' : 'bg-yellow-500'}
                           >
                             {record.status}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {record.confidence ? `${(record.confidence * 100).toFixed(1)}%` : 'N/A'}
                         </TableCell>
                       </TableRow>
                     ))
@@ -277,17 +429,18 @@ const Records = () => {
               </Table>
             </div>
             
-            {filteredRecords.length > 50 && (
+            {filteredRecords.length >= 35 && (
               <div className="mt-4 text-center">
                 <p className="text-sm text-muted-foreground">
-                  Showing first 50 records. Use filters to narrow down results or export to Excel for complete data.
+                  Showing recent 35 records. Use filters to narrow down results or export to Excel for complete data.
                 </p>
               </div>
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
-    </div>
+    </ProtectedRoute>
   );
 };
 
