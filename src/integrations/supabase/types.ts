@@ -90,8 +90,10 @@ export type Database = {
           class: string
           created_at: string
           face_descriptor: string | null
+          face_descriptor_json: string | null
           id: string
           name: string
+          photo_url: string | null
           registered_by: string | null
           updated_at: string
         }
@@ -99,8 +101,10 @@ export type Database = {
           class: string
           created_at?: string
           face_descriptor?: string | null
+          face_descriptor_json?: string | null
           id?: string
           name: string
+          photo_url?: string | null
           registered_by?: string | null
           updated_at?: string
         }
@@ -108,8 +112,10 @@ export type Database = {
           class?: string
           created_at?: string
           face_descriptor?: string | null
+          face_descriptor_json?: string | null
           id?: string
           name?: string
+          photo_url?: string | null
           registered_by?: string | null
           updated_at?: string
         }
@@ -120,7 +126,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_current_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
