@@ -174,8 +174,34 @@ const Attendance = () => {
           
           setCurrentDetection(attendanceRecord);
           
-          // Save attendance to database
+          // Check if student already has attendance record for today
           try {
+            const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
+            
+            const { data: existingRecord, error: checkError } = await supabase
+              .from('attendance_records')
+              .select('id')
+              .eq('student_id', bestMatch.id)
+              .gte('timestamp', `${today}T00:00:00`)
+              .lt('timestamp', `${today}T23:59:59`)
+              .single();
+
+            if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "no rows found"
+              console.error('Error checking existing attendance:', checkError);
+              return;
+            }
+
+            if (existingRecord) {
+              // Student already has attendance for today
+              toast({
+                title: "Already Recorded",
+                description: `${bestMatch.name} attendance already recorded today`,
+                variant: "default"
+              });
+              return;
+            }
+
+            // Save attendance to database (only if no existing record)
             const { error: insertError } = await supabase
               .from('attendance_records')
               .insert({
