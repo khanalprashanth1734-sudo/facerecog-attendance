@@ -165,24 +165,44 @@ const Register = () => {
 
     setIsRegistering(true);
     setError(null);
+    
+    console.log('Starting registration process...');
+    console.log('Form data:', formData);
+    console.log('Face descriptor length:', faceDescriptor?.length);
 
     try {
+      // Check current user and role
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log('Current user:', user);
+      
+      if (!user) {
+        setError('You must be logged in to register students.');
+        return;
+      }
+
       // Save student to Supabase database
+      console.log('Inserting student data...');
       const { data, error: insertError } = await supabase
         .from('students')
         .insert({
           name: formData.name,
           class: formData.class,
           face_descriptor_json: JSON.stringify(Array.from(faceDescriptor)),
-          photo_url: capturedPhoto
+          photo_url: capturedPhoto,
+          registered_by: user.id
         })
         .select()
         .single();
 
+      console.log('Insert result:', { data, error: insertError });
+
       if (insertError) {
-        throw insertError;
+        console.error('Insert error details:', insertError);
+        setError(`Registration failed: ${insertError.message}`);
+        return;
       }
 
+      console.log('Registration successful!');
       toast({
         title: "Registration Successful",
         description: `${formData.name} has been registered successfully!`,
@@ -196,7 +216,7 @@ const Register = () => {
 
     } catch (error) {
       console.error('Error registering student:', error);
-      setError('Failed to register student. Please try again.');
+      setError(`Failed to register student: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsRegistering(false);
     }
