@@ -21,7 +21,8 @@ import {
   Clock,
   BarChart3,
   AlertCircle,
-  Loader2
+  Loader2,
+  Trash2
 } from "lucide-react";
 import * as XLSX from 'xlsx';
 
@@ -42,7 +43,9 @@ const Records = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [showClearDialog, setShowClearDialog] = useState(false);
   const [password, setPassword] = useState('');
+  const [clearPassword, setClearPassword] = useState('');
   const [stats, setStats] = useState({
     totalRecords: 0,
     todayRecords: 0,
@@ -184,6 +187,70 @@ const Records = () => {
     }
   };
 
+  // Verify password and clear all records
+  const verifyPasswordAndClear = async () => {
+    if (!clearPassword) {
+      toast({
+        title: "Password Required",
+        description: "Please enter your password to clear all records.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Verify password by attempting to sign in
+      const { error } = await supabase.auth.signInWithPassword({
+        email: user?.email || '',
+        password: clearPassword
+      });
+
+      if (error) {
+        toast({
+          title: "Invalid Password",
+          description: "The password you entered is incorrect.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Clear all attendance records
+      const { error: deleteError } = await supabase
+        .from('attendance_records')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      toast({
+        title: "Records Cleared",
+        description: "All attendance records have been successfully deleted.",
+      });
+
+      // Refresh the records and stats
+      setRecords([]);
+      setFilteredRecords([]);
+      setStats({
+        totalRecords: 0,
+        todayRecords: 0,
+        uniqueMembers: 0,
+        averageAttendance: 0
+      });
+
+      setShowClearDialog(false);
+      setClearPassword('');
+    } catch (error) {
+      console.error('Error clearing records:', error);
+      toast({
+        title: "Clear Failed",
+        description: "An error occurred while clearing the records.",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <ProtectedRoute>
       <div className="min-h-screen py-8 px-4">
@@ -296,52 +363,102 @@ const Records = () => {
               
               <div className="space-y-2">
                 <label className="text-sm font-medium">Actions</label>
-                <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
-                  <DialogTrigger asChild>
-                    <Button className="w-full gradient-primary text-primary-foreground hover:opacity-90 transition-smooth">
-                      <Download className="h-4 w-4 mr-2" />
-                      Export Excel
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Verify Password</DialogTitle>
-                      <DialogDescription>
-                        Please enter your password to download the attendance records.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="password">Password</Label>
-                        <Input
-                          id="password"
-                          type="password"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          placeholder="Enter your password"
-                        />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+                    <DialogTrigger asChild>
+                      <Button className="w-full gradient-primary text-primary-foreground hover:opacity-90 transition-smooth">
+                        <Download className="h-4 w-4 mr-2" />
+                        Export Excel
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Verify Password</DialogTitle>
+                        <DialogDescription>
+                          Please enter your password to download the attendance records.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="password">Password</Label>
+                          <Input
+                            id="password"
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="Enter your password"
+                          />
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button
+                            onClick={verifyPasswordAndExport}
+                            className="flex-1"
+                          >
+                            Download
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setShowPasswordDialog(false);
+                              setPassword('');
+                            }}
+                            className="flex-1"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex space-x-2">
-                        <Button
-                          onClick={verifyPasswordAndExport}
-                          className="flex-1"
-                        >
-                          Download
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setShowPasswordDialog(false);
-                            setPassword('');
-                          }}
-                          className="flex-1"
-                        >
-                          Cancel
-                        </Button>
+                    </DialogContent>
+                  </Dialog>
+                  
+                  <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+                    <DialogTrigger asChild>
+                      <Button variant="destructive" className="w-full">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Clear Records
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Clear All Records</DialogTitle>
+                        <DialogDescription>
+                          This will permanently delete all attendance records. Please enter your password to confirm.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="clearPassword">Password</Label>
+                          <Input
+                            id="clearPassword"
+                            type="password"
+                            value={clearPassword}
+                            onChange={(e) => setClearPassword(e.target.value)}
+                            placeholder="Enter your password"
+                          />
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button
+                            onClick={verifyPasswordAndClear}
+                            variant="destructive"
+                            className="flex-1"
+                          >
+                            Clear All
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setShowClearDialog(false);
+                              setClearPassword('');
+                            }}
+                            className="flex-1"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </div>
             </div>
             
