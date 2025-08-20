@@ -178,20 +178,19 @@ const Attendance = () => {
           try {
             const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
             
-            const { data: existingRecord, error: checkError } = await supabase
+            const { data: existingRecords, error: checkError } = await supabase
               .from('attendance_records')
               .select('id')
               .eq('student_id', bestMatch.id)
               .gte('timestamp', `${today}T00:00:00`)
-              .lt('timestamp', `${today}T23:59:59`)
-              .single();
+              .lt('timestamp', `${today}T23:59:59`);
 
-            if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "no rows found"
+            if (checkError) {
               console.error('Error checking existing attendance:', checkError);
               return;
             }
 
-            if (existingRecord) {
+            if (existingRecords && existingRecords.length > 0) {
               // Student already has attendance for today
               toast({
                 title: "Already Recorded",
