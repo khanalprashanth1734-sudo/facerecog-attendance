@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       attendance_records: {
         Row: {
+          absent_count: number | null
           confidence: number | null
           created_at: string
           id: string
@@ -29,6 +30,7 @@ export type Database = {
           timestamp: string
         }
         Insert: {
+          absent_count?: number | null
           confidence?: number | null
           created_at?: string
           id?: string
@@ -42,6 +44,7 @@ export type Database = {
           timestamp?: string
         }
         Update: {
+          absent_count?: number | null
           confidence?: number | null
           created_at?: string
           id?: string
@@ -162,6 +165,10 @@ export type Database = {
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      mark_daily_absences: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
     }
     Enums: {

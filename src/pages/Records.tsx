@@ -35,6 +35,7 @@ interface AttendanceRecord {
   confidence: number | null;
   late_count: number | null;
   is_late: boolean | null;
+  absent_count: number | null;
 }
 
 const Records = () => {
@@ -179,7 +180,7 @@ const Records = () => {
           'Status': record.status,
           'Late Status': record.is_late ? 'Late' : 'On Time',
           'Total Late Count': record.late_count || 0,
-          'Absent Count': 0, // TODO: Implement absent tracking
+          'Absent Count': record.absent_count || 0,
           'Confidence': record.confidence ? `${(record.confidence * 100).toFixed(1)}%` : 'N/A'
         }));
 

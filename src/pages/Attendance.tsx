@@ -209,16 +209,26 @@ const Attendance = () => {
               const recordTime = new Date();
               const isLate = recordTime.getHours() < 8 || (recordTime.getHours() === 8 && recordTime.getMinutes() < 30) ? false : true;
               
-              // Get current late count for this student
-              const { data: latestRecord } = await supabase
-                .from('attendance_records')
-                .select('late_count')
-                .eq('student_name', bestMatch.name)
-                .order('created_at', { ascending: false })
-                .limit(1);
-                
-              const currentLateCount = latestRecord?.[0]?.late_count || 0;
-              const newLateCount = isLate ? currentLateCount + 1 : currentLateCount;
+                  // Get current absent count for this student
+                  const { data: latestAbsentRecord } = await supabase
+                    .from('attendance_records')
+                    .select('absent_count')
+                    .eq('student_name', bestMatch.name)
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+                    
+                  const currentAbsentCount = latestAbsentRecord?.[0]?.absent_count || 0;
+                    
+                // Get current late count for this student
+                const { data: latestRecord } = await supabase
+                  .from('attendance_records')
+                  .select('late_count')
+                  .eq('student_name', bestMatch.name)
+                  .order('created_at', { ascending: false })
+                  .limit(1);
+                  
+                const currentLateCount = latestRecord?.[0]?.late_count || 0;
+                const newLateCount = isLate ? currentLateCount + 1 : currentLateCount;
 
               // Save attendance to database (only if no existing record)
               const { error: insertError } = await supabase
@@ -230,7 +240,8 @@ const Attendance = () => {
                   confidence: confidence,
                   status: 'present',
                   is_late: isLate,
-                  late_count: newLateCount
+                  late_count: newLateCount,
+                  absent_count: currentAbsentCount
                 });
 
               if (insertError) {
