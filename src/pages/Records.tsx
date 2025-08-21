@@ -149,6 +149,15 @@ const Records = () => {
         'Class': record.student_class,
         'Date': new Date(record.created_at).toLocaleDateString(),
         'Time': new Date(record.created_at).toLocaleTimeString(),
+        'Recording Time': new Date(record.created_at).toLocaleString('en-US', { 
+          hour12: false,
+          year: 'numeric',
+          month: '2-digit', 
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        }),
         'Status': record.status,
         'Confidence': record.confidence ? `${(record.confidence * 100).toFixed(1)}%` : 'N/A'
       }));
@@ -499,6 +508,7 @@ const Records = () => {
                     <TableHead>Class</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Time</TableHead>
+                    <TableHead>Recording Time</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Confidence</TableHead>
                   </TableRow>
@@ -506,7 +516,7 @@ const Records = () => {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8">
+                      <TableCell colSpan={7} className="text-center py-8">
                         <div className="flex items-center justify-center">
                           <Loader2 className="h-6 w-6 animate-spin mr-2" />
                           Loading records...
@@ -522,6 +532,17 @@ const Records = () => {
                         </TableCell>
                         <TableCell>{new Date(record.created_at).toLocaleDateString()}</TableCell>
                         <TableCell className="font-mono">{new Date(record.created_at).toLocaleTimeString()}</TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {new Date(record.created_at).toLocaleString('en-US', { 
+                            hour12: false,
+                            year: 'numeric',
+                            month: '2-digit', 
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit'
+                          })}
+                        </TableCell>
                         <TableCell>
                           <Badge 
                             variant={record.status === 'present' ? 'default' : 'secondary'}
@@ -537,7 +558,7 @@ const Records = () => {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         No records found matching your criteria
                       </TableCell>
                     </TableRow>
