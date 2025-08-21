@@ -34,7 +34,6 @@ const Attendance = () => {
   const [recentAttendance, setRecentAttendance] = useState<AttendanceRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [students, setStudents] = useState<any[]>([]);
-  const [lastRecordedStudents, setLastRecordedStudents] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
   // Load students from database
@@ -113,8 +112,6 @@ const Attendance = () => {
       setIsCameraActive(false);
       setIsDetecting(false);
       setCurrentDetection(null);
-      // Clear recorded students when camera stops
-      setLastRecordedStudents(new Set());
     }
   };
 
@@ -167,18 +164,6 @@ const Attendance = () => {
         }
         
         if (bestMatch) {
-          // Check if this student was already recorded recently (prevent duplicates within 10 seconds)
-          const studentKey = `${bestMatch.id}-${new Date().toDateString()}`;
-          if (lastRecordedStudents.has(studentKey)) {
-            setCurrentDetection({
-              name: bestMatch.name,
-              timestamp: new Date().toLocaleString(),
-              confidence: Math.max(0, 1 - bestDistance),
-              status: 'success'
-            });
-            return; // Skip recording, already recorded today
-          }
-
           const confidence = Math.max(0, 1 - bestDistance);
           const attendanceRecord: AttendanceRecord = {
             name: bestMatch.name,
@@ -189,34 +174,8 @@ const Attendance = () => {
           
           setCurrentDetection(attendanceRecord);
           
-            // Check if student already has attendance record for today using created_at field
+            // Always allow recording, we'll handle duplicates after insertion
             try {
-              const today = new Date();
-              const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-              const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-              
-              const { data: existingRecords, error: checkError } = await supabase
-                .from('attendance_records')
-                .select('id')
-                .eq('student_id', bestMatch.id)
-                .gte('created_at', startOfDay.toISOString())
-                .lt('created_at', endOfDay.toISOString());
-
-              if (checkError) {
-                console.error('Error checking existing attendance:', checkError);
-                return;
-              }
-
-              if (existingRecords && existingRecords.length > 0) {
-                // Student already has attendance for today
-                setLastRecordedStudents(prev => new Set([...prev, studentKey]));
-                toast({
-                  title: "Already Recorded",
-                  description: `${bestMatch.name} attendance already recorded today`,
-                  variant: "default"
-                });
-                return;
-              }
 
               // Check if student is late (after 8:30 AM)
               const now = new Date();
@@ -260,8 +219,31 @@ const Attendance = () => {
               if (insertError) {
                 console.error('Error saving attendance:', insertError);
               } else {
-                // Mark student as recorded for today
-                setLastRecordedStudents(prev => new Set([...prev, studentKey]));
+                // After successful insertion, check for duplicate records and keep only highest confidence
+                const today = new Date();
+                const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+                
+                const { data: todayRecords } = await supabase
+                  .from('attendance_records')
+                  .select('id, confidence')
+                  .eq('student_id', bestMatch.id)
+                  .gte('created_at', startOfDay.toISOString())
+                  .lt('created_at', endOfDay.toISOString())
+                  .order('confidence', { ascending: false });
+                
+                // If multiple records exist, keep only the one with highest confidence
+                if (todayRecords && todayRecords.length > 1) {
+                  const recordsToDelete = todayRecords.slice(1); // Keep first (highest confidence), delete rest
+                  const idsToDelete = recordsToDelete.map(record => record.id);
+                  
+                  if (idsToDelete.length > 0) {
+                    await supabase
+                      .from('attendance_records')
+                      .delete()
+                      .in('id', idsToDelete);
+                  }
+                }
                 
                 // Check if student should be added to late_comers table
                 if (newLateCount > 3) {
