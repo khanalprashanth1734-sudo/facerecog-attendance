@@ -67,7 +67,7 @@ const Records = () => {
           .from('attendance_records')
           .select('*')
           .order('created_at', { ascending: false })
-          .limit(35); // Only get top 35 recent records
+          .limit(50); // Only get top 50 recent records
 
         if (fetchError) throw fetchError;
 
@@ -158,32 +158,57 @@ const Records = () => {
         return;
       }
 
-      // Export to Excel
-      const exportData = filteredRecords.map(record => ({
-        'Student Name': record.student_name,
-        'Class': record.student_class,
-        'Date': new Date(record.created_at).toLocaleDateString(),
-        'Time': new Date(record.created_at).toLocaleTimeString(),
-        'Status': record.status,
-        'Late Status': record.is_late ? 'Late' : 'On Time',
-        'Total Late Count': record.late_count || 0,
-        'Confidence': record.confidence ? `${(record.confidence * 100).toFixed(1)}%` : 'N/A'
-      }));
+      // Group records by class for separate sheets
+      const recordsByClass = filteredRecords.reduce((acc, record) => {
+        const className = record.student_class || 'Unassigned';
+        if (!acc[className]) {
+          acc[className] = [];
+        }
+        acc[className].push(record);
+        return acc;
+      }, {} as Record<string, AttendanceRecord[]>);
 
-      const worksheet = XLSX.utils.json_to_sheet(exportData);
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance Records');
-      
-      // Add some styling
-      const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
-      for (let C = range.s.c; C <= range.e.c; C++) {
-        const address = XLSX.utils.encode_col(C) + "1";
-        if (!worksheet[address]) continue;
-        worksheet[address].s = {
-          font: { bold: true },
-          fill: { fgColor: { rgb: "FFFFAA00" } }
-        };
-      }
+
+      // Create a sheet for each class
+      Object.entries(recordsByClass).forEach(([className, records]) => {
+        const exportData = records.map(record => ({
+          'Student Name': record.student_name,
+          'Date': new Date(record.created_at).toLocaleDateString(),
+          'Time': new Date(record.created_at).toLocaleTimeString(),
+          'Status': record.status,
+          'Late Status': record.is_late ? 'Late' : 'On Time',
+          'Total Late Count': record.late_count || 0,
+          'Absent Count': 0, // TODO: Implement absent tracking
+          'Confidence': record.confidence ? `${(record.confidence * 100).toFixed(1)}%` : 'N/A'
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
+        
+        // Style headers
+        const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+        for (let C = range.s.c; C <= range.e.c; C++) {
+          const address = XLSX.utils.encode_col(C) + "1";
+          if (!worksheet[address]) continue;
+          worksheet[address].s = {
+            font: { bold: true },
+            fill: { fgColor: { rgb: "4472C4" } }
+          };
+        }
+
+        // Style late status cells as yellow
+        for (let R = range.s.r + 1; R <= range.e.r; R++) {
+          const lateStatusCol = 4; // "Late Status" column
+          const cellAddress = XLSX.utils.encode_col(lateStatusCol) + (R + 1);
+          if (worksheet[cellAddress] && worksheet[cellAddress].v === 'Late') {
+            worksheet[cellAddress].s = {
+              fill: { fgColor: { rgb: "FFFF00" } }
+            };
+          }
+        }
+
+        XLSX.utils.book_append_sheet(workbook, worksheet, className.substring(0, 31)); // Sheet name limit
+      });
       
       XLSX.writeFile(workbook, `attendance_records_${new Date().toISOString().split('T')[0]}.xlsx`);
       
@@ -544,78 +569,71 @@ const Records = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="rounded-lg border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Student Name</TableHead>
-                    <TableHead>Class</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Time</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Late Status</TableHead>
-                    <TableHead>Late Count</TableHead>
-                    <TableHead>Confidence</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8">
-                        <div className="flex items-center justify-center">
-                          <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                          Loading records...
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ) : filteredRecords.length > 0 ? (
-                    filteredRecords.map((record) => (
-                      <TableRow key={record.id} className="hover:bg-muted/30 transition-smooth">
-                        <TableCell className="font-medium">{record.student_name}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{record.student_class}</Badge>
-                        </TableCell>
-                        <TableCell>{new Date(record.created_at).toLocaleDateString()}</TableCell>
-                        <TableCell className="font-mono">{new Date(record.created_at).toLocaleTimeString()}</TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={record.status === 'present' ? 'default' : 'secondary'}
-                            className={record.status === 'present' ? 'bg-green-500' : 'bg-yellow-500'}
-                          >
-                            {record.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={record.is_late ? 'destructive' : 'secondary'}
-                            className={record.is_late ? 'bg-red-500' : 'bg-green-500'}
-                          >
-                            {record.is_late ? 'Late' : 'On Time'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {record.late_count || 0}
-                        </TableCell>
-                        <TableCell>
-                          {record.confidence ? `${(record.confidence * 100).toFixed(1)}%` : 'N/A'}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                        No records found matching your criteria
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                  <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Student Name</TableHead>
+                          <TableHead>Class</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Time</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Late Status</TableHead>
+                          <TableHead>Late Count</TableHead>
+                          <TableHead>Confidence</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {loading ? (
+                          <TableRow>
+                            <TableCell colSpan={8} className="text-center py-8">
+                              <div className="flex items-center justify-center space-x-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span>Loading records...</span>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : filteredRecords.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                              No attendance records found
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredRecords.map((record) => (
+                            <TableRow key={record.id}>
+                              <TableCell className="font-medium">{record.student_name}</TableCell>
+                              <TableCell>{record.student_class}</TableCell>
+                              <TableCell>{new Date(record.created_at).toLocaleDateString()}</TableCell>
+                              <TableCell>{new Date(record.created_at).toLocaleTimeString()}</TableCell>
+                              <TableCell>
+                                <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-100">
+                                  {record.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge 
+                                  variant={record.is_late ? "destructive" : "default"} 
+                                  className={record.is_late ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-100" : "bg-green-100 text-green-800 hover:bg-green-100"}
+                                >
+                                  {record.is_late ? 'Late' : 'On Time'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>{record.late_count || 0}</TableCell>
+                              <TableCell>
+                                {record.confidence ? `${(record.confidence * 100).toFixed(1)}%` : 'N/A'}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
             
-            {filteredRecords.length >= 35 && (
+            {filteredRecords.length >= 50 && (
               <div className="mt-4 text-center">
                 <p className="text-sm text-muted-foreground">
-                  Showing recent 35 records. Use filters to narrow down results or export to Excel for complete data.
+                  Showing recent 50 records. Use filters to narrow down results or export to Excel for complete data.
                 </p>
               </div>
             )}

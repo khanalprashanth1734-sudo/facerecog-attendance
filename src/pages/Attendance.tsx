@@ -202,10 +202,12 @@ const Attendance = () => {
 
               // Check if student is late (after 8:30 AM)
               const now = new Date();
-              const cutoffTime = new Date();
-              cutoffTime.setHours(8, 30, 0, 0); // 8:30 AM
+              const todayCutoff = new Date();
+              todayCutoff.setHours(8, 30, 0, 0); // 8:30 AM today
               
-              const isLate = now > cutoffTime;
+              // If it's past midnight, we need to check against yesterday's cutoff if still same school day
+              const recordTime = new Date();
+              const isLate = recordTime.getHours() < 8 || (recordTime.getHours() === 8 && recordTime.getMinutes() < 30) ? false : true;
               
               // Get current late count for this student
               const { data: latestRecord } = await supabase
