@@ -33,6 +33,8 @@ interface AttendanceRecord {
   created_at: string;
   status: string;
   confidence: number | null;
+  late_count: number | null;
+  is_late: boolean | null;
 }
 
 const Records = () => {
@@ -52,6 +54,7 @@ const Records = () => {
     uniqueMembers: 0,
     averageAttendance: 0
   });
+  const [lateComers, setLateComers] = useState<any[]>([]);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -84,6 +87,18 @@ const Records = () => {
           uniqueMembers,
           averageAttendance: Math.round((data?.length || 0) / Math.max(1, new Date().getDate()))
         });
+
+        // Load late comers
+        const { data: lateComersData, error: lateComersError } = await supabase
+          .from('late_comers')
+          .select('*')
+          .order('total_late_count', { ascending: false });
+
+        if (lateComersError) {
+          console.error('Error loading late comers:', lateComersError);
+        } else {
+          setLateComers(lateComersData || []);
+        }
       } catch (error) {
         console.error('Error loading records:', error);
         setError('Failed to load attendance records');
@@ -149,16 +164,9 @@ const Records = () => {
         'Class': record.student_class,
         'Date': new Date(record.created_at).toLocaleDateString(),
         'Time': new Date(record.created_at).toLocaleTimeString(),
-        'Recording Time': new Date(record.created_at).toLocaleString('en-US', { 
-          hour12: false,
-          year: 'numeric',
-          month: '2-digit', 
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit'
-        }),
         'Status': record.status,
+        'Late Status': record.is_late ? 'Late' : 'On Time',
+        'Total Late Count': record.late_count || 0,
         'Confidence': record.confidence ? `${(record.confidence * 100).toFixed(1)}%` : 'N/A'
       }));
 
@@ -241,6 +249,7 @@ const Records = () => {
       // Refresh the records and stats
       setRecords([]);
       setFilteredRecords([]);
+      setLateComers([]);
       setStats({
         totalRecords: 0,
         todayRecords: 0,
@@ -491,6 +500,41 @@ const Records = () => {
           </CardContent>
         </Card>
 
+        {/* Late Comers Section */}
+        {lateComers.length > 0 && (
+          <Card className="glass-effect card-elevated mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center text-destructive">
+                <AlertCircle className="h-5 w-5 mr-2" />
+                Late Comers (More than 3 Late Arrivals)
+              </CardTitle>
+              <CardDescription>
+                Students who have exceeded the late arrival threshold
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {lateComers.map((lateComer) => (
+                  <div 
+                    key={lateComer.id}
+                    className="p-4 bg-destructive/10 rounded-lg border border-destructive/20"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-semibold">{lateComer.student_name}</h4>
+                      <Badge variant="destructive">
+                        {lateComer.total_late_count} Late
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Class: {lateComer.student_class}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Records Table */}
         <Card className="glass-effect card-elevated">
           <CardHeader>
@@ -508,15 +552,16 @@ const Records = () => {
                     <TableHead>Class</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Time</TableHead>
-                    <TableHead>Recording Time</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Late Status</TableHead>
+                    <TableHead>Late Count</TableHead>
                     <TableHead>Confidence</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8">
+                      <TableCell colSpan={8} className="text-center py-8">
                         <div className="flex items-center justify-center">
                           <Loader2 className="h-6 w-6 animate-spin mr-2" />
                           Loading records...
@@ -532,17 +577,6 @@ const Records = () => {
                         </TableCell>
                         <TableCell>{new Date(record.created_at).toLocaleDateString()}</TableCell>
                         <TableCell className="font-mono">{new Date(record.created_at).toLocaleTimeString()}</TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {new Date(record.created_at).toLocaleString('en-US', { 
-                            hour12: false,
-                            year: 'numeric',
-                            month: '2-digit', 
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit'
-                          })}
-                        </TableCell>
                         <TableCell>
                           <Badge 
                             variant={record.status === 'present' ? 'default' : 'secondary'}
@@ -552,13 +586,24 @@ const Records = () => {
                           </Badge>
                         </TableCell>
                         <TableCell>
+                          <Badge 
+                            variant={record.is_late ? 'destructive' : 'secondary'}
+                            className={record.is_late ? 'bg-red-500' : 'bg-green-500'}
+                          >
+                            {record.is_late ? 'Late' : 'On Time'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {record.late_count || 0}
+                        </TableCell>
+                        <TableCell>
                           {record.confidence ? `${(record.confidence * 100).toFixed(1)}%` : 'N/A'}
                         </TableCell>
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         No records found matching your criteria
                       </TableCell>
                     </TableRow>

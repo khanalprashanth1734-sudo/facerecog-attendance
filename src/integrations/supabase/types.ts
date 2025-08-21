@@ -19,6 +19,8 @@ export type Database = {
           confidence: number | null
           created_at: string
           id: string
+          is_late: boolean | null
+          late_count: number | null
           recorded_by: string | null
           status: string
           student_class: string
@@ -30,6 +32,8 @@ export type Database = {
           confidence?: number | null
           created_at?: string
           id?: string
+          is_late?: boolean | null
+          late_count?: number | null
           recorded_by?: string | null
           status?: string
           student_class: string
@@ -41,6 +45,8 @@ export type Database = {
           confidence?: number | null
           created_at?: string
           id?: string
+          is_late?: boolean | null
+          late_count?: number | null
           recorded_by?: string | null
           status?: string
           student_class?: string
@@ -57,6 +63,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      late_comers: {
+        Row: {
+          created_at: string
+          id: string
+          student_class: string
+          student_name: string
+          total_late_count: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          student_class: string
+          student_name: string
+          total_late_count?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          student_class?: string
+          student_name?: string
+          total_late_count?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {

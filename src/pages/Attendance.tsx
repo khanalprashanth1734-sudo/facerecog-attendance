@@ -174,57 +174,105 @@ const Attendance = () => {
           
           setCurrentDetection(attendanceRecord);
           
-          // Check if student already has attendance record for today
-          try {
-            const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
-            
-            const { data: existingRecords, error: checkError } = await supabase
-              .from('attendance_records')
-              .select('id')
-              .eq('student_id', bestMatch.id)
-              .gte('timestamp', `${today}T00:00:00`)
-              .lt('timestamp', `${today}T23:59:59`);
-
-            if (checkError) {
-              console.error('Error checking existing attendance:', checkError);
-              return;
-            }
-
-            if (existingRecords && existingRecords.length > 0) {
-              // Student already has attendance for today
-              toast({
-                title: "Already Recorded",
-                description: `${bestMatch.name} attendance already recorded today`,
-                variant: "default"
-              });
-              return;
-            }
-
-            // Save attendance to database (only if no existing record)
-            const { error: insertError } = await supabase
-              .from('attendance_records')
-              .insert({
-                student_id: bestMatch.id,
-                student_name: bestMatch.name,
-                student_class: bestMatch.class,
-                confidence: confidence,
-                status: 'present'
-              });
-
-            if (insertError) {
-              console.error('Error saving attendance:', insertError);
-            } else {
-              // Update recent attendance (keep only 35 most recent)
-              setRecentAttendance(prev => [attendanceRecord, ...prev.slice(0, 34)]);
+            // Check if student already has attendance record for today
+            try {
+              const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
               
-              toast({
-                title: "Attendance Recorded",
-                description: `${attendanceRecord.name} - ${attendanceRecord.timestamp}`,
-              });
+              const { data: existingRecords, error: checkError } = await supabase
+                .from('attendance_records')
+                .select('id')
+                .eq('student_id', bestMatch.id)
+                .gte('timestamp', `${today}T00:00:00`)
+                .lt('timestamp', `${today}T23:59:59`);
+
+              if (checkError) {
+                console.error('Error checking existing attendance:', checkError);
+                return;
+              }
+
+              if (existingRecords && existingRecords.length > 0) {
+                // Student already has attendance for today
+                toast({
+                  title: "Already Recorded",
+                  description: `${bestMatch.name} attendance already recorded today`,
+                  variant: "default"
+                });
+                return;
+              }
+
+              // Check if student is late (after 8:30 AM)
+              const now = new Date();
+              const cutoffTime = new Date();
+              cutoffTime.setHours(8, 30, 0, 0); // 8:30 AM
+              
+              const isLate = now > cutoffTime;
+              
+              // Get current late count for this student
+              const { data: latestRecord } = await supabase
+                .from('attendance_records')
+                .select('late_count')
+                .eq('student_name', bestMatch.name)
+                .order('created_at', { ascending: false })
+                .limit(1);
+                
+              const currentLateCount = latestRecord?.[0]?.late_count || 0;
+              const newLateCount = isLate ? currentLateCount + 1 : currentLateCount;
+
+              // Save attendance to database (only if no existing record)
+              const { error: insertError } = await supabase
+                .from('attendance_records')
+                .insert({
+                  student_id: bestMatch.id,
+                  student_name: bestMatch.name,
+                  student_class: bestMatch.class,
+                  confidence: confidence,
+                  status: 'present',
+                  is_late: isLate,
+                  late_count: newLateCount
+                });
+
+              if (insertError) {
+                console.error('Error saving attendance:', insertError);
+              } else {
+                // Check if student should be added to late_comers table
+                if (newLateCount > 3) {
+                  const { data: existingLateComer } = await supabase
+                    .from('late_comers')
+                    .select('id')
+                    .eq('student_name', bestMatch.name)
+                    .eq('student_class', bestMatch.class);
+                    
+                  if (!existingLateComer?.length) {
+                    // Add to late_comers table
+                    await supabase
+                      .from('late_comers')
+                      .insert({
+                        student_name: bestMatch.name,
+                        student_class: bestMatch.class,
+                        total_late_count: newLateCount
+                      });
+                  } else {
+                    // Update existing late_comer record
+                    await supabase
+                      .from('late_comers')
+                      .update({ total_late_count: newLateCount })
+                      .eq('student_name', bestMatch.name)
+                      .eq('student_class', bestMatch.class);
+                  }
+                }
+
+                // Update recent attendance (keep only 35 most recent)
+                setRecentAttendance(prev => [attendanceRecord, ...prev.slice(0, 34)]);
+                
+                toast({
+                  title: "Attendance Recorded",
+                  description: `${attendanceRecord.name} - ${attendanceRecord.timestamp}${isLate ? ' (Late)' : ''}`,
+                  variant: isLate ? "destructive" : "default"
+                });
+              }
+            } catch (error) {
+              console.error('Error saving attendance:', error);
             }
-          } catch (error) {
-            console.error('Error saving attendance:', error);
-          }
         } else {
           setCurrentDetection({
             name: "Unknown Person",
