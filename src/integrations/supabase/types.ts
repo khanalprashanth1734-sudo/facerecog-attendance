@@ -166,21 +166,6 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
-      get_face_descriptors_for_recognition: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          face_descriptor_json: string
-          id: string
-        }[]
-      }
-      get_student_basic_info: {
-        Args: { student_id: string }
-        Returns: {
-          class: string
-          id: string
-          name: string
-        }[]
-      }
       mark_daily_absences: {
         Args: Record<PropertyKey, never>
         Returns: undefined
