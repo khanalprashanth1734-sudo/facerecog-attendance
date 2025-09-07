@@ -36,22 +36,28 @@ const Attendance = () => {
   const [students, setStudents] = useState<any[]>([]);
   const { toast } = useToast();
 
-  // Load students from database
+  // Load face descriptors for recognition (secure - no personal info exposed)
   useEffect(() => {
-    const loadStudents = async () => {
+    const loadFaceDescriptors = async () => {
       try {
         const { data, error } = await supabase
-          .from('students')
-          .select('*');
+          .rpc('get_face_descriptors_for_recognition');
         
         if (error) throw error;
-        setStudents(data || []);
+        
+        // Transform data to match existing structure for face recognition
+        const studentsData = data?.map((item: any) => ({
+          id: item.id,
+          face_descriptor_json: item.face_descriptor_json
+        })) || [];
+        setStudents(studentsData);
       } catch (error) {
-        console.error('Error loading students:', error);
+        console.error('Error loading face descriptors:', error);
+        setError('Failed to load face recognition data. Please ensure you have teacher or admin access.');
       }
     };
 
-    loadStudents();
+    loadFaceDescriptors();
   }, []);
 
   // Load face-api models
@@ -164,9 +170,25 @@ const Attendance = () => {
         }
         
         if (bestMatch) {
+          // Get student basic info securely (only after face recognition succeeds)
+          const { data: studentInfo, error: studentError } = await supabase
+            .rpc('get_student_basic_info', { student_id: bestMatch.id });
+          
+          if (studentError || !studentInfo?.length) {
+            console.error('Error getting student info:', studentError);
+            setCurrentDetection({
+              name: "Access Denied",
+              timestamp: new Date().toLocaleString(),
+              confidence: 0,
+              status: 'unknown'
+            });
+            return;
+          }
+          
+          const student = studentInfo[0];
           const confidence = Math.max(0, 1 - bestDistance);
           const attendanceRecord: AttendanceRecord = {
-            name: bestMatch.name,
+            name: student.name,
             timestamp: new Date().toLocaleString(),
             confidence,
             status: 'success'
@@ -185,7 +207,7 @@ const Attendance = () => {
                   const { data: latestAbsentRecord } = await supabase
                     .from('attendance_records')
                     .select('absent_count')
-                    .eq('student_name', bestMatch.name)
+                    .eq('student_name', student.name)
                     .order('created_at', { ascending: false })
                     .limit(1);
                     
@@ -195,7 +217,7 @@ const Attendance = () => {
                 const { data: latestRecord } = await supabase
                   .from('attendance_records')
                   .select('late_count')
-                  .eq('student_name', bestMatch.name)
+                  .eq('student_name', student.name)
                   .order('created_at', { ascending: false })
                   .limit(1);
                   
@@ -207,8 +229,8 @@ const Attendance = () => {
                 .from('attendance_records')
                 .insert({
                   student_id: bestMatch.id,
-                  student_name: bestMatch.name,
-                  student_class: bestMatch.class,
+                  student_name: student.name,
+                  student_class: student.class,
                   confidence: confidence,
                   status: 'present',
                   is_late: isLate,
@@ -250,16 +272,16 @@ const Attendance = () => {
                   const { data: existingLateComer } = await supabase
                     .from('late_comers')
                     .select('id')
-                    .eq('student_name', bestMatch.name)
-                    .eq('student_class', bestMatch.class);
+                    .eq('student_name', student.name)
+                    .eq('student_class', student.class);
                     
                   if (!existingLateComer?.length) {
                     // Add to late_comers table
                     await supabase
                       .from('late_comers')
                       .insert({
-                        student_name: bestMatch.name,
-                        student_class: bestMatch.class,
+                        student_name: student.name,
+                        student_class: student.class,
                         total_late_count: newLateCount
                       });
                   } else {
@@ -267,8 +289,8 @@ const Attendance = () => {
                     await supabase
                       .from('late_comers')
                       .update({ total_late_count: newLateCount })
-                      .eq('student_name', bestMatch.name)
-                      .eq('student_class', bestMatch.class);
+                      .eq('student_name', student.name)
+                      .eq('student_class', student.class);
                   }
                 }
 
